@@ -1,0 +1,8 @@
+{
+    "root_url": "http://localhost:8000",
+    "defaults": {
+        "device_file": ".adept/device.xml",
+        "activation_file": ".adept/activation.xml",
+        "device_salt": ".adept/devicesalt"
+    }
+}

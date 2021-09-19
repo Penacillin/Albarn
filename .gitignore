@@ -1,0 +1,7 @@
+.temp
+bin
+*.epub
+output
+.adept
+
+config.json
