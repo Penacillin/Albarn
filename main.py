@@ -7,6 +7,8 @@ import logging
 
 from fastapi import FastAPI, File, UploadFile
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse
+from pydantic import BaseModel
 
 import subprocess
 
@@ -36,12 +38,21 @@ DEFAULT_KEY = DEFAULT_FILES.get('device_salt', None)
 app.mount("/output", StaticFiles(directory="output"), name="static")
 
 
-@app.post("/convert_acsm")
+class ConvertACSMResponse(BaseModel):
+    book_size: int
+    book_name: str
+    book_link: str
+    stdout: str
+    stderr: str
+    return_code: int
+
+
+@app.post("/convert_acsm", response_model=ConvertACSMResponse)
 async def convert_acsm(
         book: UploadFile = File(...),
-        device_file: bytes = File(DEFAULT_DEVICE if DEFAULT_DEVICE else ...),
-        activation_file: bytes = File(DEFAULT_ACTIVATION if DEFAULT_ACTIVATION else ...),
-        device_salt: bytes = File(DEFAULT_KEY if DEFAULT_KEY else ...)):
+        device_file: bytes = File(DEFAULT_DEVICE),
+        activation_file: bytes = File(DEFAULT_ACTIVATION),
+        device_salt: bytes = File(b'' if DEFAULT_KEY else None)):
 
     with tempfile.NamedTemporaryFile(dir='.temp', suffix='.xml', delete=False) as df, \
             tempfile.NamedTemporaryFile(dir='.temp', suffix='.xml', delete=False) as af, \
@@ -49,7 +60,10 @@ async def convert_acsm(
             tempfile.NamedTemporaryFile(dir='.temp', suffix='.acsm', delete=False) as book_fp:
         df.write(device_file)
         af.write(activation_file)
-        ds.write(device_salt)
+        if DEFAULT_KEY and device_salt == b'':
+            ds.write(DEFAULT_KEY)
+        else:
+            ds.write(device_salt)
         contents = await book.read()
         if isinstance(contents, str):
             contents = contents.encode('utf-8')
@@ -78,3 +92,24 @@ async def convert_acsm(
         "stderr": completed.stderr,
         "return_code": completed.returncode
     }
+
+
+@app.get("/acsm")
+async def acsm():
+    html_content = """
+    <html>
+        <head>
+            <title>Albarn</title>
+        </head>
+        <body>
+            <form action="./convert_acsm" method="post" enctype="multipart/form-data">
+                <label for="myfile">Select an acsm file:</label>
+                <input type="file" id="myfile" name="book">
+                <br>
+                <input type="submit" value="Submit">
+            </form>
+        </body>
+    </html>
+    """
+
+    return HTMLResponse(content=html_content, status_code=200)
